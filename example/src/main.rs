@@ -10,6 +10,7 @@ use glutin::dpi::PhysicalSize;
 use glam::Mat4;
 use serde_json::Value;
 use serde::Deserialize;
+use artery_font::ArteryFont;
 
 #[derive(Debug, Copy, Clone, Deserialize)]
 struct Rect {
@@ -75,6 +76,8 @@ impl Glyph {
 }
 
 fn main() {
+    println!("{:?}", ArteryFont::read(&include_bytes!("../example.arfont")[..]));
+
     let event_loop = glutin::event_loop::EventLoop::new();
     let wb = glutin::window::WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(1280.0, 720.0))
