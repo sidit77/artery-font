@@ -1,8 +1,78 @@
+extern crate core;
+
+use std::collections::HashMap;
 use std::default::Default;
+use std::fs::File;
+use std::ops::Div;
 use glium::{Blend, DrawParameters, implement_vertex, program, Surface, uniform};
 use glium::index::{NoIndices, PrimitiveType};
 use glutin::dpi::PhysicalSize;
 use glam::Mat4;
+use serde_json::Value;
+use serde::Deserialize;
+
+#[derive(Debug, Copy, Clone, Deserialize)]
+struct Rect {
+    left: f32,
+    bottom: f32,
+    right: f32,
+    top: f32
+}
+
+impl Div<(f32, f32)> for Rect{
+    type Output = Rect;
+
+    fn div(self, (width, height): (f32, f32)) -> Self::Output {
+        Self {
+            left: self.left / width,
+            bottom: self.bottom / height,
+            right: self.right / width,
+            top: self.top / height
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Vertex {
+    position: [f32; 2],
+    tex_coord: [f32; 2],
+}
+implement_vertex!(Vertex, position, tex_coord);
+
+#[derive(Debug, Copy, Clone)]
+struct Quad {
+    plane_bounds: Rect,
+    atlas_bounds: Rect
+}
+
+impl Quad {
+
+    fn vertices(&self, x_offset: f32, y_offset: f32) -> impl Iterator<Item=Vertex> {
+        [
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.top   ] },
+        ].into_iter()
+    }
+
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Glyph {
+    advance: f32,
+    quad: Option<Quad>
+}
+
+impl Glyph {
+
+    fn vertices(&self, x_offset: f32, y_offset: f32) -> impl Iterator<Item=Vertex> + '_ {
+        self.quad.iter().flat_map(move |q|q.vertices(x_offset, y_offset))
+    }
+
+}
 
 fn main() {
     let event_loop = glutin::event_loop::EventLoop::new();
@@ -17,25 +87,52 @@ fn main() {
     let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
     let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
 
-    // building the vertex buffer, which contains all the vertices that we will draw
-    let vertex_buffer = {
-        #[derive(Copy, Clone)]
-        struct Vertex {
-            position: [f32; 2],
-            tex_coord: [f32; 2],
+
+    let (glyphs, line_height) = {
+        let json: Value = serde_json::from_reader(File::open("test.json").unwrap()).unwrap();
+        let width = json["atlas"]["width"].as_f64().unwrap() as f32;
+        let height = json["atlas"]["height"].as_f64().unwrap() as f32;
+        let line_height = json["metrics"]["lineHeight"].as_f64().unwrap() as f32;
+
+        let mut glyphs = HashMap::new();
+
+        for glyph in json["glyphs"].as_array().unwrap() {
+            let unicode = std::char::from_u32(glyph["unicode"].as_u64().unwrap() as u32).unwrap();
+            let advance = glyph["advance"].as_f64().unwrap() as f32;
+            let plane_bounds = Rect::deserialize(&glyph["planeBounds"]).ok();
+            let atlas_bounds = Rect::deserialize(&glyph["atlasBounds"]).map(|r| r / (width, height)).ok();
+            glyphs.insert(unicode, Glyph {
+                advance,
+                quad: plane_bounds.and_then(|pb| atlas_bounds.map(|ab| Quad { plane_bounds: pb, atlas_bounds: ab }))
+            });
         }
 
-        implement_vertex!(Vertex, position, tex_coord);
+        (glyphs, line_height)
+    };
+
+    let text = "Hello World!\nThis an example for text rendering\nusing msdf fonts";
+
+    // building the vertex buffer, which contains all the vertices that we will draw
+    let vertex_buffer = {
+
+        let mut vertices = Vec::new();
+        let mut x;
+        let mut y = 6.0;
+
+        for line in text.lines() {
+            x = 1.0;
+            for glyph in line.chars().map(|c|glyphs[&c]) {
+                for v in glyph.vertices(x, y) {
+                    vertices.push(v);
+                }
+                x += glyph.advance;
+            }
+            y -= line_height * 0.55;
+        }
+
 
         glium::VertexBuffer::new(&display,
-                                 &[
-                                     Vertex { position: [-1.0, -1.0], tex_coord: [0.0, 0.0] },
-                                     Vertex { position: [ 1.0, -1.0], tex_coord: [1.0, 0.0] },
-                                     Vertex { position: [-1.0,  1.0], tex_coord: [0.0, 1.0] },
-                                     Vertex { position: [-1.0,  1.0], tex_coord: [0.0, 1.0] },
-                                     Vertex { position: [ 1.0, -1.0], tex_coord: [1.0, 0.0] },
-                                     Vertex { position: [ 1.0,  1.0], tex_coord: [1.0, 1.0] },
-                                 ]
+                                 vertices.as_slice()
         ).unwrap()
     };
 
@@ -82,6 +179,7 @@ fn main() {
     ).unwrap();
 
 
+    let scale = 15.0;
     // Here we draw the black background and triangle to the screen using the previously
     // initialised resources.
     //
@@ -90,7 +188,7 @@ fn main() {
     let draw = move || {
         // building the uniforms
         let uniforms = uniform! {
-            matrix: Mat4::orthographic_rh(-6.4, 6.4, -3.6, 3.6, 0.0, 1.0).to_cols_array_2d(),
+            matrix: Mat4::orthographic_rh(0.0, 1.28 * scale, 0.0, 0.72 * scale, 0.0, 1.0).to_cols_array_2d(),
             tex: &opengl_texture
         };
 
