@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 artery-font = {path = ".."}
+glium = "0.31"
+glutin = "0.28"
+glam = "0.20"
