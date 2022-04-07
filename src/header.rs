@@ -4,7 +4,11 @@ pub const ARTERY_FONT_HEADER_TAG: &[u8; 16] = b"ARTERY/FONT\0\0\0\0\0";
 pub const ARTERY_FONT_HEADER_MAGIC_NO: u32 = 0x4d276a5c;
 pub const ARTERY_FONT_FOOTER_MAGIC_NO: u32 = 0x55ccb363;
 
+#[cfg(not(feature = "double"))]
 pub type Real = f32;
+
+#[cfg(feature = "double")]
+pub type Real = f64;
 
 pub trait TypeCode {
     fn type_code() -> u32;
