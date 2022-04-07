@@ -1,4 +1,5 @@
-use glium::{implement_vertex, program, Surface, uniform};
+use std::default::Default;
+use glium::{Blend, DrawParameters, implement_vertex, program, Surface, uniform};
 use glium::index::{NoIndices, PrimitiveType};
 use glutin::dpi::PhysicalSize;
 use glam::Mat4;
@@ -11,24 +12,29 @@ fn main() {
     let cb = glutin::ContextBuilder::new();
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
+    let image = image::open("test.png").unwrap().to_rgba8();
+    let image_dimensions = image.dimensions();
+    let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+    let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
+
     // building the vertex buffer, which contains all the vertices that we will draw
     let vertex_buffer = {
         #[derive(Copy, Clone)]
         struct Vertex {
             position: [f32; 2],
-            color: [f32; 3],
+            tex_coord: [f32; 2],
         }
 
-        implement_vertex!(Vertex, position, color);
+        implement_vertex!(Vertex, position, tex_coord);
 
         glium::VertexBuffer::new(&display,
                                  &[
-                                     Vertex { position: [-1.0, -1.0], color: [0.0, 1.0, 0.0] },
-                                     Vertex { position: [ 1.0, -1.0], color: [0.0, 0.0, 1.0] },
-                                     Vertex { position: [-1.0,  1.0], color: [1.0, 0.0, 0.0] },
-                                     Vertex { position: [-1.0,  1.0], color: [1.0, 0.0, 0.0] },
-                                     Vertex { position: [ 1.0, -1.0], color: [0.0, 0.0, 1.0] },
-                                     Vertex { position: [ 1.0,  1.0], color: [0.0, 1.0, 0.0] },
+                                     Vertex { position: [-1.0, -1.0], tex_coord: [0.0, 0.0] },
+                                     Vertex { position: [ 1.0, -1.0], tex_coord: [1.0, 0.0] },
+                                     Vertex { position: [-1.0,  1.0], tex_coord: [0.0, 1.0] },
+                                     Vertex { position: [-1.0,  1.0], tex_coord: [0.0, 1.0] },
+                                     Vertex { position: [ 1.0, -1.0], tex_coord: [1.0, 0.0] },
+                                     Vertex { position: [ 1.0,  1.0], tex_coord: [1.0, 1.0] },
                                  ]
         ).unwrap()
     };
@@ -39,25 +45,37 @@ fn main() {
             vertex: "
                 #version 450 core
 
-                layout(location = 0) in vec2 position;
-                layout(location = 1) in vec3 color;
+                in vec2 position;
+                in vec2 tex_coord;
 
-                out vec3 vColor;
+                out vec2 v_tex_coords;
 
                 uniform mat4 matrix;
 
                 void main() {
                     gl_Position = matrix * vec4(position, 0.0, 1.0);
-                    vColor = color;
+                    v_tex_coords = tex_coord;
                 }
             ",
 
             fragment: "
                 #version 450 core
-                in vec3 vColor;
+                in vec2 v_tex_coords;
                 out vec4 f_color;
+                uniform sampler2D tex;
+
+                float median(float r, float g, float b) {
+                    return max(min(r, g), min(max(r, g), b));
+                }
+
+                float screenPxRange = 4.5;
+
                 void main() {
-                    f_color = vec4(vColor, 1.0);
+                    vec3 msd = texture(tex, v_tex_coords).rgb;
+                    float sd = median(msd.r, msd.g, msd.b);
+                    float screenPxDistance = screenPxRange * (sd - 0.5);
+                    float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
+                    f_color = vec4(1, 1, 1, opacity);
                 }
             "
         }
@@ -72,13 +90,17 @@ fn main() {
     let draw = move || {
         // building the uniforms
         let uniforms = uniform! {
-            matrix: Mat4::orthographic_rh(-6.4, 6.4, -3.6, 3.6, 0.0, 1.0).to_cols_array_2d()
+            matrix: Mat4::orthographic_rh(-6.4, 6.4, -3.6, 3.6, 0.0, 1.0).to_cols_array_2d(),
+            tex: &opengl_texture
         };
 
         // drawing a frame
         let mut target = display.draw();
-        target.clear_color(0.0, 0.0, 0.0, 0.0);
-        target.draw(&vertex_buffer, NoIndices(PrimitiveType::TrianglesList), &program, &uniforms, &Default::default()).unwrap();
+        target.clear_color(0.3, 0.3, 0.3, 1.0);
+        target.draw(&vertex_buffer, NoIndices(PrimitiveType::TrianglesList), &program, &uniforms, &DrawParameters {
+            blend: Blend::alpha_blending(),
+            ..Default::default()
+        }).unwrap();
         target.finish().unwrap();
     };
 

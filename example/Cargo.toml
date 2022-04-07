@@ -10,3 +10,4 @@ artery-font = {path = ".."}
 glium = "0.31"
 glutin = "0.28"
 glam = "0.20"
+image = "0.24"
