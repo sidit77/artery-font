@@ -29,3 +29,30 @@ pub enum ImageType {
     Mtsdf = 7,
     MixedContent = 255
 }
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, TryFromPrimitive)]
+#[repr(u32)]
+pub enum ImageEncoding {
+    UnknownEncoding = 0,
+    RawBinary = 1,
+    Bmp = 4,
+    Tiff = 5,
+    Png = 8,
+    Tga = 9
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, TryFromPrimitive)]
+#[repr(u32)]
+pub enum PixelFormat {
+    Unknown = 0,
+    Boolean1 = 1,
+    Unsigned8 = 8,
+    Float32 = 32
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, TryFromPrimitive)]
+#[repr(i32)]
+pub enum ImageOrientation {
+    TopDown = 1,
+    BottomUp = -1
+}

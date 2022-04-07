@@ -1,11 +1,13 @@
 mod enums;
+mod crc32;
 
-use std::io::Read;
+use std::fmt::{Debug};
+use std::io::{Read};
 use anyhow::{bail, ensure, Result};
-use crc32fast::Hasher;
 use zerocopy::{FromBytes, AsBytes};
-use crate::enums::{CodepointType, ImageType, MetadataFormat};
+use crate::enums::{CodepointType, ImageEncoding, ImageOrientation, ImageType, MetadataFormat, PixelFormat};
 use std::io::Result as IoResult;
+use crate::crc32::Hasher;
 
 type UtfResult<T> = std::result::Result<T, std::string::FromUtf8Error>;
 
@@ -32,7 +34,6 @@ impl Real for f64 {
     }
 }
 
-
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
 #[repr(C)]
 struct ArteryFontHeader {
@@ -56,6 +57,16 @@ struct ArteryFontHeader {
 
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
 #[repr(C)]
+struct ArteryFontFooter {
+    salt: u32,
+    magic_no: u32,
+    reserved: [u32;4],
+    total_length: u32
+}
+
+
+#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[repr(C)]
 struct FontVariantHeader {
     flags: u32,
     weight: u32,
@@ -69,6 +80,32 @@ struct FontVariantHeader {
     metadata_length: u32,
     glyph_count: u32,
     kern_pair_count: u32,
+}
+
+#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[repr(C)]
+struct ImageHeader {
+    flags: u32,
+    encoding: u32,
+    width: u32,
+    height: u32,
+    channels: u32,
+    pixel_format: u32,
+    image_type: u32,
+    row_length: u32,
+    orientation: i32,
+    child_images: u32,
+    texture_flags: u32,
+    reserved: [u32; 3],
+    metadata_length: u32,
+    data_length: u32
+}
+
+#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[repr(C)]
+struct AppendixHeader {
+    metadata_length: u32,
+    data_length: u32
 }
 
 struct ReadWrapper<R> {
@@ -100,11 +137,9 @@ impl<R: Read> ReadWrapper<R> {
         Ok(result)
     }
 
-    fn read_struct_array<S: AsBytes + FromBytes>(&mut self, len: usize) -> IoResult<Vec<S>> {
-        let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
-            vec.push(self.read_struct::<S>()?);
-        }
+    fn read_struct_array<S: AsBytes + FromBytes + Clone>(&mut self, len: usize) -> IoResult<Vec<S>> {
+        let mut vec = vec![S::new_zeroed(); len];
+        self.read(vec.as_bytes_mut())?;
         Ok(vec)
     }
 
@@ -193,14 +228,32 @@ pub struct FontVariant {
     pub kern_pairs: Vec<KernPair>
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RawBinaryFormat {
+    pub row_length: u32,
+    pub orientation: ImageOrientation,
+}
+
 #[derive(Debug, Clone)]
 pub struct Image {
-
+    pub flags: u32,
+    pub encoding: ImageEncoding,
+    pub width: u32,
+    pub height: u32,
+    pub channels: u32,
+    pub pixel_format: PixelFormat,
+    pub image_type: ImageType,
+    pub raw_binary_format: RawBinaryFormat,
+    pub child_images: u32,
+    pub texture_flags: u32,
+    pub metadata: String,
+    pub data: Vec<u8>
 }
 
 #[derive(Debug, Clone)]
 pub struct Appendix {
-
+    pub metadata: String,
+    pub data: Vec<u8>
 }
 
 
@@ -212,10 +265,11 @@ pub struct ArteryFont {
     pub appendices: Vec<Appendix>
 }
 
-
 impl ArteryFont {
 
+    #[cfg(target_endian = "little")]
     pub fn read<R: Read>(reader: R) -> Result<Self> {
+
 
         let mut reader = ReadWrapper::new(reader);
 
@@ -234,15 +288,10 @@ impl ArteryFont {
             _ => bail!("Unknown metadata format!")
         };
 
-        let mut variants = Vec::with_capacity(font_header.variant_count as usize);
-        let mut images = Vec::with_capacity(font_header.image_count as usize);
-        let mut appendices = Vec::with_capacity(font_header.appendix_count as usize);
-
         let prev_length = reader.total_length;
-
+        let mut variants = Vec::with_capacity(font_header.variant_count as usize);
         for _ in 0..font_header.variant_count {
             let variant_header = reader.read_struct::<FontVariantHeader>()?;
-            println!("{:#?}", variant_header);
             variants.push(FontVariant {
                 flags: variant_header.flags,
                 weight: variant_header.weight,
@@ -257,8 +306,51 @@ impl ArteryFont {
                 kern_pairs: reader.read_struct_array(variant_header.kern_pair_count as usize)?
             });
         }
-
         ensure!(reader.total_length - prev_length == font_header.variants_length as usize);
+
+        let prev_length = reader.total_length;
+        let mut images = Vec::with_capacity(font_header.image_count as usize);
+        for _ in 0..font_header.image_count {
+            let image_header = reader.read_struct::<ImageHeader>()?;
+            images.push(Image {
+                flags: image_header.flags,
+                encoding: ImageEncoding::try_from(image_header.encoding)?,
+                width: image_header.width,
+                height: image_header.height,
+                channels: image_header.channels,
+                pixel_format: PixelFormat::try_from(image_header.pixel_format)?,
+                image_type: ImageType::try_from(image_header.image_type)?,
+                raw_binary_format: RawBinaryFormat {
+                    row_length: image_header.row_length,
+                    orientation: ImageOrientation::try_from(image_header.orientation).unwrap_or(ImageOrientation::BottomUp)
+                },
+                child_images: image_header.child_images,
+                texture_flags: image_header.texture_flags,
+                metadata: reader.read_string(image_header.metadata_length as usize)??,
+                data: reader.read_struct_array(image_header.data_length as usize)?
+            });
+            reader.realign()?;
+        }
+        ensure!(reader.total_length - prev_length == font_header.images_length as usize);
+
+        let prev_length = reader.total_length;
+        let mut appendices = Vec::with_capacity(font_header.appendix_count as usize);
+        for _ in 0..font_header.appendix_count {
+            let appendix_header = reader.read_struct::<AppendixHeader>()?;
+            appendices.push(Appendix {
+                metadata: reader.read_string(appendix_header.metadata_length as usize)??,
+                data: reader.read_struct_array(appendix_header.data_length as usize)?,
+            });
+            reader.realign()?;
+        }
+        ensure!(reader.total_length - prev_length == font_header.appendix_count as usize);
+
+        let footer = reader.read_struct::<ArteryFontFooter>()?;
+        ensure!(footer.magic_no == ARTERY_FONT_FOOTER_MAGIC_NO);
+        let checksum = std::mem::take(&mut reader.checksum).finalize();
+        let footer_checksum = reader.read_struct::<u32>()?;
+        ensure!(checksum == footer_checksum);
+        ensure!(reader.total_length == footer.total_length as usize);
 
         Ok(Self {
             metadata_format,

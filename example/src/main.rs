@@ -76,7 +76,16 @@ impl Glyph {
 }
 
 fn main() {
-    println!("{:?}", ArteryFont::read(&include_bytes!("../example.arfont")[..]));
+    let arfont = ArteryFont::read(&include_bytes!("../raw.arfont")[..]).map(|mut font| {
+        for v in &mut font.variants {
+            v.glyphs.clear();
+        }
+        for i in &mut font.images {
+            i.data.clear();
+        }
+        font
+    });
+    println!("{:#?}", arfont);
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let wb = glutin::window::WindowBuilder::new()
