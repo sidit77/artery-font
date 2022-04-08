@@ -1,4 +1,4 @@
-use zerocopy::{FromBytes, AsBytes};
+use bytemuck::{Zeroable, Pod};
 
 pub const ARTERY_FONT_HEADER_TAG: &[u8; 16] = b"ARTERY/FONT\0\0\0\0\0";
 pub const ARTERY_FONT_HEADER_MAGIC_NO: u32 = 0x4d276a5c;
@@ -26,7 +26,7 @@ impl TypeCode for f64 {
     }
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct ArteryFontHeader {
     pub tag: [u8; 16],
@@ -46,7 +46,7 @@ pub struct ArteryFontHeader {
     pub reserved2: [u32; 8]
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct ArteryFontFooter {
     pub salt: u32,
@@ -56,7 +56,7 @@ pub struct ArteryFontFooter {
 }
 
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct FontVariantHeader {
     pub flags: u32,
@@ -73,7 +73,7 @@ pub struct FontVariantHeader {
     pub kern_pair_count: u32,
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct ImageHeader {
     pub flags: u32,
@@ -92,7 +92,7 @@ pub struct ImageHeader {
     pub data_length: u32
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct AppendixHeader {
     pub metadata_length: u32,

@@ -1,5 +1,5 @@
 use std::io::Read;
-use zerocopy::{AsBytes, FromBytes};
+use bytemuck::{Zeroable, Pod};
 
 type UtfResult<T> = std::result::Result<T, std::string::FromUtf8Error>;
 type IoResult<T> = std::io::Result<T>;
@@ -32,15 +32,15 @@ impl<R: Read> ReadWrapper<R> {
         }
     }
 
-    pub fn read_struct<S: AsBytes + FromBytes>(&mut self) -> IoResult<S> {
-        let mut result = S::new_zeroed();
-        self.read_exact(result.as_bytes_mut())?;
+    pub fn read_struct<S: Zeroable + Pod>(&mut self) -> IoResult<S> {
+        let mut result = S::zeroed();
+        self.read_exact(bytemuck::bytes_of_mut(&mut result))?;
         Ok(result)
     }
 
-    pub fn read_struct_array<S: AsBytes + FromBytes + Clone>(&mut self, len: usize) -> IoResult<Vec<S>> {
-        let mut vec = vec![S::new_zeroed(); len];
-        self.read_exact(vec.as_bytes_mut())?;
+    pub fn read_struct_array<S: Zeroable + Pod + Clone>(&mut self, len: usize) -> IoResult<Vec<S>> {
+        let mut vec = vec![S::zeroed(); len];
+        self.read_exact(bytemuck::cast_slice_mut(&mut vec[..]))?;
         Ok(vec)
     }
 

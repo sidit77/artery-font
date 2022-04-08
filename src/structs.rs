@@ -1,15 +1,15 @@
-use zerocopy::{FromBytes, AsBytes};
+use bytemuck::{Pod, Zeroable};
 use crate::enums::*;
 use crate::header::Real;
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct Advance {
     pub horizontal: Real,
     pub vertical: Real
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct Rect {
     pub left: Real,
@@ -33,7 +33,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct Glyph {
     pub codepoint: u32,
@@ -49,7 +49,7 @@ impl Glyph {
     }
 }
 
-#[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct KernPair {
     pub codepoint1: u32,
@@ -57,7 +57,7 @@ pub struct KernPair {
     pub advance: Advance
 }
 
-#[derive(Debug, Copy, Clone, FromBytes)]
+#[derive(Debug, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]
 pub struct FontMetric {
     pub font_size: Real,

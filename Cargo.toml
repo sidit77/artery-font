@@ -16,5 +16,5 @@ no-checksum = []
 
 [dependencies]
 anyhow = "1.0"
-zerocopy = "0.6.1"
+bytemuck = {version = "1.9.1", features = ["derive"]}
 png = {version = "0.17.5", optional = true}

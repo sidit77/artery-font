@@ -7,7 +7,6 @@ mod crc32;
 
 use std::io::{Read};
 use anyhow::{bail, ensure, Result};
-use zerocopy::{FromBytes, AsBytes};
 use crate::util::ReadWrapper;
 use crate::header::*;
 
@@ -47,7 +46,7 @@ impl ArteryFont {
                 image_type: ImageType::from(variant_header.image_type),
                 fallback_variant: variant_header.fallback_variant,
                 fallback_glyph: variant_header.fallback_glyph,
-                metrics: FontMetric::read_from_prefix(variant_header.metrics.as_bytes()).unwrap(),
+                metrics: bytemuck::cast_slice(&variant_header.metrics[..8])[0],
                 name: reader.read_string(variant_header.name_length as usize)??,
                 metadata: reader.read_string(variant_header.metadata_length as usize)??,
                 glyphs: reader.read_struct_array(variant_header.glyph_count as usize)?,
