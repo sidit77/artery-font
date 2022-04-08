@@ -43,8 +43,8 @@ impl ArteryFont {
             variants.push(FontVariant {
                 flags: variant_header.flags,
                 weight: variant_header.weight,
-                codepoint_type: CodepointType::try_from(variant_header.codepoint_type)?,
-                image_type: ImageType::try_from(variant_header.image_type)?,
+                codepoint_type: CodepointType::from(variant_header.codepoint_type),
+                image_type: ImageType::from(variant_header.image_type),
                 fallback_variant: variant_header.fallback_variant,
                 fallback_glyph: variant_header.fallback_glyph,
                 metrics: FontMetric::read_from_prefix(variant_header.metrics.as_bytes()).unwrap(),
@@ -60,39 +60,25 @@ impl ArteryFont {
         let mut images = Vec::with_capacity(font_header.image_count as usize);
         for _ in 0..font_header.image_count {
             let image_header = reader.read_struct::<ImageHeader>()?;
-            let encoding = ImageEncoding::try_from(image_header.encoding)?;
-            let pixel_format = PixelFormat::try_from(image_header.pixel_format)?;
+            let encoding = ImageEncoding::from(image_header.encoding);
+            let pixel_format = PixelFormat::from(image_header.pixel_format);
             let metadata = reader.read_string(image_header.metadata_length as usize)??;
             let data = match encoding {
                 #[cfg(feature = "png")]
                 ImageEncoding::Png => {
-                    use png::{Decoder, ColorType, BitDepth};
-
-                    let mut decoder = Decoder::new((&mut reader).take(image_header.data_length as u64));
+                    let mut decoder = png::Decoder::new((&mut reader).take(image_header.data_length as u64));
                     decoder.set_transformations(png::Transformations::EXPAND);
                     let mut reader = decoder.read_info()?;
                     let mut buf = vec![0u8; reader.output_buffer_size()];
                     let info = reader.next_frame(&mut buf)?;
-
-                    let format = match info.bit_depth {
-                        BitDepth::One => PixelFormat::Boolean1,
-                        BitDepth::Eight => PixelFormat::Unsigned8,
-                        _ => PixelFormat::Unknown
-                    };
-                    let channels = match info.color_type {
-                        ColorType::Grayscale => 1,
-                        ColorType::Rgb => 3,
-                        ColorType::Rgba => 4,
-                        _ => bail!("unsupported color type {:?}", info.color_type)
-                    };
-                    ensure!(channels == image_header.channels);
-                    ensure!(format == pixel_format);
+                    ensure!(info.color_type.samples() == image_header.channels as usize);
+                    ensure!(info.bit_depth as usize == pixel_format.bits());
                     ensure!(info.width == image_header.width);
                     ensure!(info.height == image_header.height);
                     buf
                 },
                 ImageEncoding::RawBinary => {
-                    let orientation = ImageOrientation::try_from(image_header.orientation)?;
+                    let orientation = ImageOrientation::from(image_header.orientation);
                     match orientation {
                         ImageOrientation::BottomUp => {
                             let prev_length = reader.bytes_read();
@@ -104,7 +90,8 @@ impl ArteryFont {
                             ensure!(reader.bytes_read() - prev_length == image_header.data_length as usize);
                             data
                         }
-                        ImageOrientation::TopDown => reader.read_struct_array(image_header.data_length as usize)?
+                        ImageOrientation::TopDown => reader.read_struct_array(image_header.data_length as usize)?,
+                        ImageOrientation::Unknown => bail!("Unknown orientation")
                     }
                 }
                 ImageEncoding::UnknownEncoding => bail!("Unknown encoding"),
@@ -117,7 +104,7 @@ impl ArteryFont {
                 height: image_header.height,
                 channels: image_header.channels,
                 pixel_format,
-                image_type: ImageType::try_from(image_header.image_type)?,
+                image_type: ImageType::from(image_header.image_type),
                 child_images: image_header.child_images,
                 texture_flags: image_header.texture_flags,
                 metadata,
