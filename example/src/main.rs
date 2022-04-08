@@ -2,36 +2,11 @@ extern crate core;
 
 use std::collections::HashMap;
 use std::default::Default;
-use std::fs::File;
-use std::ops::Div;
 use glium::{Blend, DrawParameters, implement_vertex, program, Surface, uniform};
 use glium::index::{NoIndices, PrimitiveType};
 use glutin::dpi::PhysicalSize;
 use glam::Mat4;
-use serde_json::Value;
-use serde::Deserialize;
-use artery_font::ArteryFont;
-
-#[derive(Debug, Copy, Clone, Deserialize)]
-struct Rect {
-    left: f32,
-    bottom: f32,
-    right: f32,
-    top: f32
-}
-
-impl Div<(f32, f32)> for Rect{
-    type Output = Rect;
-
-    fn div(self, (width, height): (f32, f32)) -> Self::Output {
-        Self {
-            left: self.left / width,
-            bottom: self.bottom / height,
-            right: self.right / width,
-            top: self.top / height
-        }
-    }
-}
+use artery_font::{ArteryFont, CodepointType, ImageType, PixelFormat, Rect};
 
 #[derive(Debug, Copy, Clone)]
 struct Vertex {
@@ -76,16 +51,6 @@ impl Glyph {
 }
 
 fn main() {
-    let arfont = ArteryFont::read(&include_bytes!("../raw.arfont")[..]).map(|mut font| {
-        for v in &mut font.variants {
-            v.glyphs.clear();
-        }
-        for i in &mut font.images {
-            i.data.clear();
-        }
-        font
-    });
-    println!("{:#?}", arfont);
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let wb = glutin::window::WindowBuilder::new()
@@ -94,32 +59,38 @@ fn main() {
     let cb = glutin::ContextBuilder::new();
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-    let image = image::open("test.png").unwrap().to_rgba8();
-    let image_dimensions = image.dimensions();
-    let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
-    let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
+    let (opengl_texture, glyphs, line_height) = {
+        let arfont = ArteryFont::read(&include_bytes!("../test.arfont")[..]).unwrap();
+        let image = arfont.images.first().unwrap();
+        let variant = arfont.variants.first().unwrap();
+        assert_eq!(variant.image_type, ImageType::Msdf);
+        assert_eq!(variant.codepoint_type, CodepointType::Unicode);
+        let line_height = variant.metrics.line_height;
 
+        let mut glyphs = HashMap::<char, Glyph>::new();
 
-    let (glyphs, line_height) = {
-        let json: Value = serde_json::from_reader(File::open("test.json").unwrap()).unwrap();
-        let width = json["atlas"]["width"].as_f64().unwrap() as f32;
-        let height = json["atlas"]["height"].as_f64().unwrap() as f32;
-        let line_height = json["metrics"]["lineHeight"].as_f64().unwrap() as f32;
-
-        let mut glyphs = HashMap::new();
-
-        for glyph in json["glyphs"].as_array().unwrap() {
-            let unicode = std::char::from_u32(glyph["unicode"].as_u64().unwrap() as u32).unwrap();
-            let advance = glyph["advance"].as_f64().unwrap() as f32;
-            let plane_bounds = Rect::deserialize(&glyph["planeBounds"]).ok();
-            let atlas_bounds = Rect::deserialize(&glyph["atlasBounds"]).map(|r| r / (width, height)).ok();
+        for glyph in &variant.glyphs {
+            let unicode = std::char::from_u32(glyph.codepoint).unwrap();
+            let advance = glyph.advance.horizontal;
+            assert_eq!(glyph.advance.vertical, 0.0, "character: {}", unicode);
+            assert_eq!(glyph.image, 0);
             glyphs.insert(unicode, Glyph {
                 advance,
-                quad: plane_bounds.and_then(|pb| atlas_bounds.map(|ab| Quad { plane_bounds: pb, atlas_bounds: ab }))
+                quad: match glyph.is_drawable() {
+                    true => Some(Quad {
+                        plane_bounds: glyph.plane_bounds,
+                        atlas_bounds: glyph.image_bounds.scaled(1.0 / image.width as f32, 1.0 / image.height as f32)
+                    }),
+                    false => None
+                }
             });
         }
 
-        (glyphs, line_height)
+        assert_eq!(image.channels, 3);
+        assert_eq!(image.pixel_format, PixelFormat::Unsigned8);
+        let image = glium::texture::RawImage2d::from_raw_rgb_reversed(&image.data, (image.width, image.height));
+        let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
+        (opengl_texture, glyphs, line_height)
     };
 
     let text = "Hello World!\nThis an example for text rendering\nusing msdf fonts";

@@ -60,13 +60,47 @@ impl ArteryFont {
         let mut images = Vec::with_capacity(font_header.image_count as usize);
         for _ in 0..font_header.image_count {
             let image_header = reader.read_struct::<ImageHeader>()?;
+            let encoding = ImageEncoding::try_from(image_header.encoding)?;
+            let pixel_format = PixelFormat::try_from(image_header.pixel_format)?;
+            let metadata = reader.read_string(image_header.metadata_length as usize)??;
+            let data = match encoding {
+                ImageEncoding::Png => {
+                    use png::{Decoder, ColorType, BitDepth};
+
+                    let data = reader.read_struct_array::<u8>(image_header.data_length as usize)?;
+                    let mut decoder = Decoder::new(data.as_slice());
+                    decoder.set_transformations(png::Transformations::EXPAND);
+                    let mut reader = decoder.read_info()?;
+                    let mut buf = vec![0u8; reader.output_buffer_size()];
+                    let info = reader.next_frame(&mut buf)?;
+
+                    let format = match info.bit_depth {
+                        BitDepth::One => PixelFormat::Boolean1,
+                        BitDepth::Eight => PixelFormat::Unsigned8,
+                        _ => PixelFormat::Unknown
+                    };
+                    let channels = match info.color_type {
+                        ColorType::Grayscale => 1,
+                        ColorType::Rgb => 3,
+                        ColorType::Rgba => 4,
+                        _ => bail!("unsupported color type {:?}", info.color_type)
+                    };
+                    ensure!(channels == image_header.channels);
+                    ensure!(format == pixel_format);
+                    ensure!(info.width == image_header.width);
+                    ensure!(info.height == image_header.height);
+                    buf
+                }
+                ImageEncoding::UnknownEncoding => bail!("Unknown encoding"),
+                _ => bail!("Encoding {:?} not yet supported", encoding)
+            };
             images.push(Image {
                 flags: image_header.flags,
-                encoding: ImageEncoding::try_from(image_header.encoding)?,
+                encoding,
                 width: image_header.width,
                 height: image_header.height,
                 channels: image_header.channels,
-                pixel_format: PixelFormat::try_from(image_header.pixel_format)?,
+                pixel_format,
                 image_type: ImageType::try_from(image_header.image_type)?,
                 raw_binary_format: RawBinaryFormat {
                     row_length: image_header.row_length,
@@ -74,8 +108,8 @@ impl ArteryFont {
                 },
                 child_images: image_header.child_images,
                 texture_flags: image_header.texture_flags,
-                metadata: reader.read_string(image_header.metadata_length as usize)??,
-                data: reader.read_struct_array(image_header.data_length as usize)?
+                metadata,
+                data
             });
             reader.realign()?;
         }

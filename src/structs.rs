@@ -5,8 +5,8 @@ use crate::header::Real;
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
 #[repr(C)]
 pub struct Advance {
-    pub vertical: Real,
-    pub horizontal: Real
+    pub horizontal: Real,
+    pub vertical: Real
 }
 
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
@@ -18,6 +18,21 @@ pub struct Rect {
     pub top: Real
 }
 
+impl Rect {
+    pub fn is_empty(self) -> bool{
+        self.top == self.bottom || self.left == self.right
+    }
+
+    pub fn scaled(self, x: Real, y: Real) -> Self {
+        Self {
+            left: self.left * x,
+            bottom: self.bottom * y,
+            right: self.right * x,
+            top: self.top * y
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
 #[repr(C)]
 pub struct Glyph {
@@ -26,6 +41,12 @@ pub struct Glyph {
     pub plane_bounds: Rect,
     pub image_bounds: Rect,
     pub advance: Advance
+}
+
+impl Glyph {
+    pub fn is_drawable(self) -> bool{
+        !self.plane_bounds.is_empty() && !self.image_bounds.is_empty()
+    }
 }
 
 #[derive(Debug, Copy, Clone, FromBytes, AsBytes)]
