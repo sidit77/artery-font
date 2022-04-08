@@ -1,6 +1,6 @@
 
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Hasher(u32);
 
 impl Default for Hasher {

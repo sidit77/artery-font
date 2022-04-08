@@ -1,8 +1,9 @@
 mod enums;
-mod crc32;
 mod header;
 mod util;
 mod structs;
+#[cfg(not(feature = "no-checksum"))]
+mod crc32;
 
 use std::io::{Read};
 use anyhow::{bail, ensure, Result};
@@ -94,9 +95,16 @@ impl ArteryFont {
 
         let footer = reader.read_struct::<ArteryFontFooter>()?;
         ensure!(footer.magic_no == ARTERY_FONT_FOOTER_MAGIC_NO);
-        let checksum = reader.checksum();
-        let footer_checksum = reader.read_struct::<u32>()?;
-        ensure!(checksum == footer_checksum);
+
+        #[cfg(not(feature = "no-checksum"))]
+        {
+            let checksum = reader.checksum();
+            let footer_checksum = reader.read_struct::<u32>()?;
+            ensure!(checksum == footer_checksum);
+        }
+        #[cfg(feature = "no-checksum")]
+        let _ = reader.read_struct::<u32>()?;
+
         ensure!(reader.bytes_read() == footer.total_length as usize);
 
         Ok(Self {
@@ -105,6 +113,11 @@ impl ArteryFont {
             images,
             appendices
         })
+    }
+
+    #[cfg(not(target_endian = "little"))]
+    pub fn read<R: Read>(reader: R) -> Result<!> {
+        bail!("big endian is not supported")
     }
 
 }

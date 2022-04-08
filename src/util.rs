@@ -1,6 +1,5 @@
 use std::io::Read;
 use zerocopy::{AsBytes, FromBytes};
-use crate::crc32::Hasher;
 
 type UtfResult<T> = std::result::Result<T, std::string::FromUtf8Error>;
 type IoResult<T> = std::io::Result<T>;
@@ -8,7 +7,8 @@ type IoResult<T> = std::io::Result<T>;
 pub struct ReadWrapper<R> {
     inner: R,
     total_length: usize,
-    checksum: Hasher
+    #[cfg(not(feature = "no-checksum"))]
+    checksum: crate::crc32::Hasher
 }
 
 impl<R: Read> ReadWrapper<R> {
@@ -17,13 +17,15 @@ impl<R: Read> ReadWrapper<R> {
         Self {
             inner,
             total_length: 0,
-            checksum: Hasher::new()
+            #[cfg(not(feature = "no-checksum"))]
+            checksum: crate::crc32::Hasher::new()
         }
     }
 
     pub fn read(&mut self, buf: &mut [u8]) -> IoResult<()> {
         self.inner.read_exact(buf)?;
         self.total_length += buf.len();
+        #[cfg(not(feature = "no-checksum"))]
         self.checksum.update(buf);
         Ok(())
     }
@@ -61,6 +63,7 @@ impl<R: Read> ReadWrapper<R> {
         }
     }
 
+    #[cfg(not(feature = "no-checksum"))]
     pub fn checksum(&self) -> u32 {
         self.checksum.clone().finalize()
     }

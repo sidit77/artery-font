@@ -12,6 +12,7 @@ members = [
 
 [features]
 double = []
+no-checksum = []
 
 [dependencies]
 anyhow = "1.0"
