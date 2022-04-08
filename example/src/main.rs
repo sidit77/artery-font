@@ -6,6 +6,7 @@ use glium::{Blend, DrawParameters, implement_vertex, program, Surface, uniform};
 use glium::index::{NoIndices, PrimitiveType};
 use glutin::dpi::PhysicalSize;
 use glam::Mat4;
+use glutin::event::MouseScrollDelta;
 use artery_font::{ArteryFont, CodepointType, ImageType, PixelFormat, Rect};
 
 #[derive(Debug, Copy, Clone)]
@@ -59,13 +60,14 @@ fn main() {
     let cb = glutin::ContextBuilder::new();
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-    let (opengl_texture, glyphs, line_height) = {
+    let (opengl_texture, glyphs, line_height, px_range) = {
         let arfont = ArteryFont::read(&include_bytes!("../test.arfont")[..]).unwrap();
         let image = arfont.images.first().unwrap();
         let variant = arfont.variants.first().unwrap();
         assert_eq!(variant.image_type, ImageType::Msdf);
         assert_eq!(variant.codepoint_type, CodepointType::Unicode);
         let line_height = variant.metrics.line_height;
+        let pxrange = variant.metrics.distance_range / variant.metrics.font_size;
 
         let mut glyphs = HashMap::<char, Glyph>::new();
 
@@ -90,7 +92,7 @@ fn main() {
         assert_eq!(image.pixel_format, PixelFormat::Unsigned8);
         let image = glium::texture::RawImage2d::from_raw_rgb(image.data.clone(), (image.width, image.height));
         let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
-        (opengl_texture, glyphs, line_height)
+        (opengl_texture, glyphs, line_height, pxrange)
     };
 
     let text = "Hello World!\nThis an example for text rendering\nusing msdf fonts";
@@ -100,10 +102,10 @@ fn main() {
 
         let mut vertices = Vec::new();
         let mut x;
-        let mut y = 6.0;
+        let mut y = 2.2;
 
         for line in text.lines() {
-            x = 1.0;
+            x = 0.2;
             for glyph in line.chars().map(|c|glyphs[&c]) {
                 for v in glyph.vertices(x, y) {
                     vertices.push(v);
@@ -148,7 +150,7 @@ fn main() {
                     return max(min(r, g), min(max(r, g), b));
                 }
 
-                float screenPxRange = 4.5;
+                uniform float screenPxRange;
 
                 void main() {
                     vec3 msd = texture(tex, v_tex_coords).rgb;
@@ -162,17 +164,18 @@ fn main() {
     ).unwrap();
 
 
-    let scale = 15.0;
+    let mut scale = 10.0;
     // Here we draw the black background and triangle to the screen using the previously
     // initialised resources.
     //
     // In this case we use a closure for simplicity, however keep in mind that most serious
     // applications should probably use a function that takes the resources as an argument.
-    let draw = move || {
+    let draw = move |scale| {
         // building the uniforms
         let uniforms = uniform! {
-            matrix: Mat4::orthographic_rh(0.0, 1.28 * scale, 0.0, 0.72 * scale, 0.0, 1.0).to_cols_array_2d(),
-            tex: &opengl_texture
+            matrix: Mat4::orthographic_rh(0.0, (16.0 / 9.0) * scale, 0.0, scale, 0.0, 1.0).to_cols_array_2d(),
+            tex: &opengl_texture,
+            screenPxRange: (720.0 / scale) * px_range
         };
 
         // drawing a frame
@@ -186,7 +189,7 @@ fn main() {
     };
 
     // Draw the triangle to the screen.
-    draw();
+    draw(scale);
 
     // the main loop
     event_loop.run(move |event, _, control_flow| {
@@ -196,7 +199,15 @@ fn main() {
                 glutin::event::WindowEvent::CloseRequested => glutin::event_loop::ControlFlow::Exit,
                 // Redraw the triangle when the window is resized.
                 glutin::event::WindowEvent::Resized(..) => {
-                    draw();
+                    draw(scale);
+                    glutin::event_loop::ControlFlow::Poll
+                },
+                glutin::event::WindowEvent::MouseWheel { delta, .. } => {
+                    scale += match delta {
+                        MouseScrollDelta::LineDelta(_, v) => v,
+                        MouseScrollDelta::PixelDelta(px) => px.y as f32 / 100.0
+                    };
+                    draw(scale);
                     glutin::event_loop::ControlFlow::Poll
                 },
                 _ => glutin::event_loop::ControlFlow::Poll,
