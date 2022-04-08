@@ -92,7 +92,20 @@ impl ArteryFont {
                     buf
                 },
                 ImageEncoding::RawBinary => {
-                    reader.read_struct_array(image_header.data_length as usize)?
+                    let orientation = ImageOrientation::try_from(image_header.orientation)?;
+                    match orientation {
+                        ImageOrientation::BottomUp => {
+                            let prev_length = reader.bytes_read();
+                            let mut data = vec![0u8; image_header.data_length as usize];
+                            let row = image_header.row_length as usize;
+                            for y in (0..image_header.height as usize).rev() {
+                                reader.read_exact(&mut data[(row * y)..(row * (y + 1))])?;
+                            }
+                            ensure!(reader.bytes_read() - prev_length == image_header.data_length as usize);
+                            data
+                        }
+                        ImageOrientation::TopDown => reader.read_struct_array(image_header.data_length as usize)?
+                    }
                 }
                 ImageEncoding::UnknownEncoding => bail!("Unknown encoding"),
                 _ => bail!("Encoding {:?} not supported or enabled", encoding)
@@ -100,16 +113,11 @@ impl ArteryFont {
             reader.realign()?;
             images.push(Image {
                 flags: image_header.flags,
-                encoding,
                 width: image_header.width,
                 height: image_header.height,
                 channels: image_header.channels,
                 pixel_format,
                 image_type: ImageType::try_from(image_header.image_type)?,
-                raw_binary_format: RawBinaryFormat {
-                    row_length: image_header.row_length,
-                    orientation: ImageOrientation::try_from(image_header.orientation).unwrap_or(ImageOrientation::BottomUp)
-                },
                 child_images: image_header.child_images,
                 texture_flags: image_header.texture_flags,
                 metadata,

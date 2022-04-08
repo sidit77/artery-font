@@ -25,12 +25,12 @@ impl Quad {
 
     fn vertices(&self, x_offset: f32, y_offset: f32) -> impl Iterator<Item=Vertex> {
         [
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.top   ] },
         ].into_iter()
     }
 
@@ -60,7 +60,7 @@ fn main() {
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let (opengl_texture, glyphs, line_height) = {
-        let arfont = ArteryFont::read(&include_bytes!("../test.arfont")[..]).unwrap();
+        let arfont = ArteryFont::read(&include_bytes!("../raw.arfont")[..]).unwrap();
         let image = arfont.images.first().unwrap();
         let variant = arfont.variants.first().unwrap();
         assert_eq!(variant.image_type, ImageType::Msdf);
@@ -88,7 +88,7 @@ fn main() {
 
         assert_eq!(image.channels, 3);
         assert_eq!(image.pixel_format, PixelFormat::Unsigned8);
-        let image = glium::texture::RawImage2d::from_raw_rgb_reversed(&image.data, (image.width, image.height));
+        let image = glium::texture::RawImage2d::from_raw_rgb(image.data.clone(), (image.width, image.height));
         let opengl_texture = glium::texture::Texture2d::new(&display, image).unwrap();
         (opengl_texture, glyphs, line_height)
     };

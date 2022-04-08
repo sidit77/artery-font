@@ -94,13 +94,11 @@ pub struct RawBinaryFormat {
 #[derive(Debug, Clone)]
 pub struct Image {
     pub flags: u32,
-    pub encoding: ImageEncoding,
     pub width: u32,
     pub height: u32,
     pub channels: u32,
     pub pixel_format: PixelFormat,
     pub image_type: ImageType,
-    pub raw_binary_format: RawBinaryFormat,
     pub child_images: u32,
     pub texture_flags: u32,
     pub metadata: String,
