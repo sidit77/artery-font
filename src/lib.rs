@@ -64,11 +64,11 @@ impl ArteryFont {
             let pixel_format = PixelFormat::try_from(image_header.pixel_format)?;
             let metadata = reader.read_string(image_header.metadata_length as usize)??;
             let data = match encoding {
+                #[cfg(feature = "png")]
                 ImageEncoding::Png => {
                     use png::{Decoder, ColorType, BitDepth};
 
-                    let data = reader.read_struct_array::<u8>(image_header.data_length as usize)?;
-                    let mut decoder = Decoder::new(data.as_slice());
+                    let mut decoder = Decoder::new((&mut reader).take(image_header.data_length as u64));
                     decoder.set_transformations(png::Transformations::EXPAND);
                     let mut reader = decoder.read_info()?;
                     let mut buf = vec![0u8; reader.output_buffer_size()];
@@ -90,10 +90,14 @@ impl ArteryFont {
                     ensure!(info.width == image_header.width);
                     ensure!(info.height == image_header.height);
                     buf
+                },
+                ImageEncoding::RawBinary => {
+                    reader.read_struct_array(image_header.data_length as usize)?
                 }
                 ImageEncoding::UnknownEncoding => bail!("Unknown encoding"),
-                _ => bail!("Encoding {:?} not yet supported", encoding)
+                _ => bail!("Encoding {:?} not supported or enabled", encoding)
             };
+            reader.realign()?;
             images.push(Image {
                 flags: image_header.flags,
                 encoding,
@@ -111,7 +115,6 @@ impl ArteryFont {
                 metadata,
                 data
             });
-            reader.realign()?;
         }
         ensure!(reader.bytes_read() - prev_length == font_header.images_length as usize);
 

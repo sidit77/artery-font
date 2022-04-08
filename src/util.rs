@@ -11,6 +11,16 @@ pub struct ReadWrapper<R> {
     checksum: crate::crc32::Hasher
 }
 
+impl<R: Read> Read for ReadWrapper<R> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        let len = self.inner.read(buf)?;
+        self.total_length += len;
+        #[cfg(not(feature = "no-checksum"))]
+        self.checksum.update(&buf[..len]);
+        Ok(len)
+    }
+}
+
 impl<R: Read> ReadWrapper<R> {
 
     pub fn new(inner: R) -> Self {
@@ -22,23 +32,15 @@ impl<R: Read> ReadWrapper<R> {
         }
     }
 
-    pub fn read(&mut self, buf: &mut [u8]) -> IoResult<()> {
-        self.inner.read_exact(buf)?;
-        self.total_length += buf.len();
-        #[cfg(not(feature = "no-checksum"))]
-        self.checksum.update(buf);
-        Ok(())
-    }
-
     pub fn read_struct<S: AsBytes + FromBytes>(&mut self) -> IoResult<S> {
         let mut result = S::new_zeroed();
-        self.read(result.as_bytes_mut())?;
+        self.read_exact(result.as_bytes_mut())?;
         Ok(result)
     }
 
     pub fn read_struct_array<S: AsBytes + FromBytes + Clone>(&mut self, len: usize) -> IoResult<Vec<S>> {
         let mut vec = vec![S::new_zeroed(); len];
-        self.read(vec.as_bytes_mut())?;
+        self.read_exact(vec.as_bytes_mut())?;
         Ok(vec)
     }
 
@@ -46,7 +48,7 @@ impl<R: Read> ReadWrapper<R> {
         let mut dump = [0u8; 4];
         if self.total_length & 0x03 != 0 {
             let len = 0x04 - (self.total_length & 0x03);
-            self.read(&mut dump[..len])?;
+            self.read_exact(&mut dump[..len])?;
         }
         Ok(())
     }
@@ -54,7 +56,7 @@ impl<R: Read> ReadWrapper<R> {
     pub fn read_string(&mut self, len: usize) -> IoResult<UtfResult<String>> {
         if len > 0 {
             let mut buf = vec![0u8; len + 1];
-            self.read(buf.as_mut_slice())?;
+            self.read_exact(buf.as_mut_slice())?;
             self.realign()?;
             buf.pop();
             Ok(String::from_utf8(buf))
