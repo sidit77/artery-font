@@ -61,7 +61,7 @@ fn main() {
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let (opengl_texture, glyphs, line_height, px_range) = {
-        let arfont = ArteryFont::read(&include_bytes!("../test.arfont")[..]).unwrap();
+        let arfont = ArteryFont::read(&include_bytes!("../data/test.arfont")[..]).unwrap();
         let image = arfont.images.first().unwrap();
         let variant = arfont.variants.first().unwrap();
         assert_eq!(variant.image_type, ImageType::Msdf);
