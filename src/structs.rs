@@ -85,12 +85,6 @@ pub struct FontVariant {
     pub kern_pairs: Vec<KernPair>
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct RawBinaryFormat {
-    pub row_length: u32,
-    pub orientation: ImageOrientation,
-}
-
 #[derive(Debug, Clone)]
 pub struct Image {
     pub flags: u32,

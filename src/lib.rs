@@ -9,10 +9,25 @@ mod crc32;
 use std::io::{Read};
 use crate::util::ReadWrapper;
 use crate::header::*;
+use crate::enums::{ImageEncoding, ImageOrientation};
 use crate::error::{Error};
 
-pub use crate::enums::*;
+pub use crate::enums::{CodepointType, ImageType, MetadataFormat, PixelFormat};
 pub use crate::structs::*;
+
+macro_rules! fail {
+	($($arg:tt)*) => {{
+		return Err(Error::Decode(std::format!($($arg)*)))
+	}};
+}
+
+macro_rules! ensure {
+	( $x:expr, $($arg:tt)*) => {{
+		if !$x {
+			fail!($($arg)*);
+		}
+	}};
+}
 
 impl ArteryFont {
 

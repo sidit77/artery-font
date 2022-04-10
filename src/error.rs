@@ -48,19 +48,3 @@ impl From<PngError> for Error {
         Self::Png(err)
     }
 }
-
-#[macro_export]
-macro_rules! fail {
-	($($arg:tt)*) => {{
-		return Err($crate::Error::Decode(std::format!($($arg)*)))
-	}};
-}
-
-#[macro_export]
-macro_rules! ensure {
-	( $x:expr, $($arg:tt)*) => {{
-		if !$x {
-			$crate::fail!($($arg)*);
-		}
-	}};
-}
