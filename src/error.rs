@@ -7,21 +7,21 @@ use png::DecodingError as PngError;
 
 #[derive(Debug)]
 pub enum Error {
-    IoError(IoError),
-    Utf8Error(Utf8Error),
-    DecodeError(String),
+    Io(IoError),
+    Utf8(Utf8Error),
+    Decode(String),
     #[cfg(feature = "png")]
-    PngError(PngError)
+    Png(PngError)
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::IoError(err) => err.fmt(f),
-            Error::Utf8Error(err) => err.fmt(f),
-            Error::DecodeError(err) => write!(f, "Decoding Error: {}", err),
+            Error::Io(err) => err.fmt(f),
+            Error::Utf8(err) => err.fmt(f),
+            Error::Decode(err) => write!(f, "Decoding Error: {}", err),
             #[cfg(feature = "png")]
-            Error::PngError(err) => err.fmt(f),
+            Error::Png(err) => err.fmt(f),
         }
     }
 }
@@ -32,27 +32,27 @@ impl StdError for Error {
 
 impl From<IoError> for Error {
     fn from(err: IoError) -> Self {
-        Self::IoError(err)
+        Self::Io(err)
     }
 }
 
 impl From<Utf8Error> for Error {
     fn from(err: Utf8Error) -> Self {
-        Self::Utf8Error(err)
+        Self::Utf8(err)
     }
 }
 
 #[cfg(feature = "png")]
 impl From<PngError> for Error {
     fn from(err: PngError) -> Self {
-        Self::PngError(err)
+        Self::Png(err)
     }
 }
 
 #[macro_export]
 macro_rules! fail {
 	($($arg:tt)*) => {{
-		return Err($crate::Error::DecodeError(std::format!($($arg)*)))
+		return Err($crate::Error::Decode(std::format!($($arg)*)))
 	}};
 }
 
