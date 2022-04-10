@@ -1,27 +1,28 @@
+# artery-font
+A pure Rust parser for Artery Atlas font files.
+An Artery Atlas font file (*.arfont) wraps together the atlas bitmap(s), which can be compressed e.g. in PNG format, the layout of the atlas, as well as the font's and the individual glyphs' metrics and positioning data, including kerning pairs.
 
-## Run the desktop version
-```sh
-cargo run
+Artery Atlas font files can be generated using the [Multi-channel signed distance field atlas generator](https://github.com/Chlumsky/msdf-atlas-gen).
+
+This is a port of the [C++ Reference Implementation](https://github.com/Chlumsky/artery-font-format).
+
+Currently only PNG and RawBinary are supported as images.
+
+## Example
+```rust
+let arfont = ArteryFont::read(&include_bytes!("../data/test.arfont")[..]).unwrap();
+let image = arfont.images.first().unwrap();
+let variant = arfont.variants.first().unwrap();
+assert_eq!(variant.image_type, ImageType::Msdf);
+assert_eq!(variant.codepoint_type, CodepointType::Unicode);
+let line_height = variant.metrics.line_height;
 ```
+See the [full Example](https://github.com/sidit77/artery-font/blob/main/example/src/main.rs)
 
-## Run the web version
+## Cargo features
+* `double`: Configures this library to use `f64` instead of `f32` for floating point values. Needs to match the exporter.
+* `no-checksum`: Disables checksum calculation and verification. Note: this flag only affects this library and has no effect on the embedded image loading crates.
+* `png`: enables support for png compression
 
-```sh
-cd platforms/wasm
-npm install
-
-# Builds the project and opens it in a new browser tab. Auto-reloads when the project changes.
-npm start
-
-#or
-
-# Builds the project and places it into the `dist` folder.
-npm run build
-```
-
-## Run the android version
-
-```sh
-cd platforms/android
-cargo apk run
-```
+## License
+MIT License
