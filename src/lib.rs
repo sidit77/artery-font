@@ -74,24 +74,17 @@ impl ArteryFont {
                     ensure!(info.bit_depth as usize == pixel_format.bits());
                     ensure!(info.width == image_header.width);
                     ensure!(info.height == image_header.height);
+                    flip_vertically(&mut buf, info.line_size);
                     buf
                 },
                 ImageEncoding::RawBinary => {
-                    let orientation = ImageOrientation::from(image_header.orientation);
-                    match orientation {
-                        ImageOrientation::BottomUp => {
-                            let prev_length = reader.bytes_read();
-                            let mut data = vec![0u8; image_header.data_length as usize];
-                            let row = image_header.row_length as usize;
-                            for y in (0..image_header.height as usize).rev() {
-                                reader.read_exact(&mut data[(row * y)..(row * (y + 1))])?;
-                            }
-                            ensure!(reader.bytes_read() - prev_length == image_header.data_length as usize);
-                            data
-                        }
-                        ImageOrientation::TopDown => reader.read_struct_array(image_header.data_length as usize)?,
+                    let mut data = reader.read_struct_array(image_header.data_length as usize)?;
+                    match ImageOrientation::from(image_header.orientation) {
+                        ImageOrientation::BottomUp => {},
+                        ImageOrientation::TopDown => flip_vertically(&mut data, image_header.row_length as usize),
                         ImageOrientation::Unknown => bail!("Unknown orientation")
                     }
+                    data
                 }
                 ImageEncoding::UnknownEncoding => bail!("Unknown encoding"),
                 _ => bail!("Encoding {:?} not supported or enabled", encoding)
@@ -152,3 +145,15 @@ impl ArteryFont {
     }
 
 }
+
+fn flip_vertically(data: &mut [u8], bytes_per_row: usize) {
+    assert_eq!(data.len() % bytes_per_row, 0);
+    let mut chunks = data.chunks_exact_mut(bytes_per_row);
+    while chunks
+        .next()
+        .and_then(|v1| chunks
+            .next_back()
+            .map(|v2| v1.swap_with_slice(v2)))
+        .is_some() {}
+}
+

@@ -26,12 +26,12 @@ impl Quad {
 
     fn vertices(&self, x_offset: f32, y_offset: f32) -> impl Iterator<Item=Vertex> {
         [
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.top   ] },
-            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , 1.0 - self.atlas_bounds.top   ] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.bottom] },
-            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.right, 1.0 - self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.left , y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.left , self.atlas_bounds.top   ] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.bottom], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.bottom] },
+            Vertex { position: [x_offset + self.plane_bounds.right, y_offset + self.plane_bounds.top   ], tex_coord: [self.atlas_bounds.right, self.atlas_bounds.top   ] },
         ].into_iter()
     }
 
