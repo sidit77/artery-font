@@ -164,12 +164,12 @@ impl ArteryFont {
 
 fn flip_vertically(data: &mut [u8], bytes_per_row: usize) {
     assert_eq!(data.len() % bytes_per_row, 0);
-    let mut chunks = data.chunks_exact_mut(bytes_per_row);
-    while chunks
-        .next()
-        .and_then(|v1| chunks
-            .next_back()
-            .map(|v2| v1.swap_with_slice(v2)))
-        .is_some() {}
+    let mut rows = data.chunks_exact_mut(bytes_per_row);
+    loop {
+        match (rows.next(), rows.next_back()) {
+            (Some(r1), Some(r2)) => r1.swap_with_slice(r2),
+            _ => break
+        }
+    }
 }
 
